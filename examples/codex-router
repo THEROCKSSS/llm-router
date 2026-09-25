@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Codex via the local LLM router — bash wrapper.
+# Place at: ~/.local/bin/codex-router  (chmod +x)
+# Requires: LLM_ROUTER_CODEX_KEY set (or sourced from ~/.codex/.env)
+exec codex --profile router "$@"

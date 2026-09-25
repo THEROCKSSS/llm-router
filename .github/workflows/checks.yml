@@ -1,0 +1,39 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python syntax check (scripts)
+        run: |
+          python -m compileall -q scripts/
+
+      - name: YAML parses
+        run: |
+          pip install --quiet pyyaml
+          python - <<'EOF'
+          import yaml, sys
+          for f in ("config.example.yaml",):
+              with open(f, encoding="utf-8") as fh:
+                  yaml.safe_load(fh)
+              print(f"{f}: OK")
+          EOF
+
+      - name: Secret scan
+        run: |
+          set -e
+          GREP='grep -rInE --exclude-dir=.git --exclude=checks.yml --exclude=CONTRIBUTING.md'
+          ! $GREP '(sk-[A-Za-z0-9]{8,}|oc_sk_|ghp_|glpat-)' . || (echo "key-shaped string found"; exit 1)
+          ! $GREP 'ts\.net' . || (echo "tailnet hostname found"; exit 1)
+          test -z "$(find . -name '.env' -not -name '.env.example')" || (echo ".env present"; exit 1)
+          echo "secret scan clean"

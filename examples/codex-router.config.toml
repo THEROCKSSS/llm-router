@@ -1,0 +1,23 @@
+# Codex CLI profile — routes everything through the local LLM router.
+# Place at: ~/.codex/router.config.toml
+# Use:      codex --profile router   (or the codex-router wrapper)
+# Your main ~/.codex/config.toml stays untouched — profiles layer on top.
+#
+# Provide the key via env var:  LLM_ROUTER_CODEX_KEY=<codex virtual key>
+# (e.g. in ~/.codex/.env or your environment)
+
+model = "openai-compatible/<your-default-lane>"
+model_provider = "router"
+model_context_window = 1048576
+model_reasoning_effort = "high"
+# REQUIRED with lanes that map reasoning onto a plain string (most
+# openai-compatible upstreams): Codex otherwise sends
+# reasoning:{effort, summary:"auto"} and those lanes 400 with
+# "cannot unmarshal object into Go struct field ... reasoning_effort".
+model_reasoning_summary = "none"
+
+[model_providers.router]
+name = "Local LLM Router"
+base_url = "http://127.0.0.1:4000/v1"
+env_key = "LLM_ROUTER_CODEX_KEY"
+wire_api = "responses"

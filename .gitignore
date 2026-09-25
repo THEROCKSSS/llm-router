@@ -1,0 +1,26 @@
+# gitignored — never commit secrets or runtime state
+.env
+*.env
+!.env.example
+
+# secret files (the launcher reads these; they must never be tracked)
+master_key
+key_*
+ui_password
+db_url
+db_password
+
+# logs + runtime state
+*.log
+*-state.json
+__pycache__/
+*.pyc
+
+# local venvs
+.venv/
+venv/
+
+# OS noise
+NUL
+Thumbs.db
+.DS_Store

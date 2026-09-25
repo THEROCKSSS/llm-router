@@ -1,0 +1,134 @@
+# ============================================================================
+# Multi-lane LLM router — LiteLLM config (SANITIZED TEMPLATE)
+# ============================================================================
+# One OpenAI-compatible endpoint fronting any number of provider "lanes".
+# Every value below is a placeholder — supply real ones via environment vars
+# (see .env.example) or replace the os.environ/NAME references.
+#
+# Lanes demonstrated here:
+#   1. A generic OpenAI-compatible upstream (any vendor, local shim, vLLM…)
+#   2. A wildcard lane: any model id of a provider, resolved live (no per-model
+#      registration) — shown with OpenRouter
+#   3. A cloud OpenAI-compatible gateway with a fixed model list — shown with
+#      Ollama cloud
+#   4. A custom Python provider for APIs that need request shaping (optional;
+#      build one with docs/02-LANES.md → Pattern 5)
+#   5. A fully LOCAL model server on the same machine — shown with "laya"
+#      (a non-autoregressive decision engine, Jev alternative)
+#
+# Docs: docs/00-OVERVIEW.md → docs/01-INSTALL.md → docs/02-LANES.md
+# ============================================================================
+
+model_list:
+  # --------------------------------------------------------------------------
+  # Lane 1 — direct OpenAI-compatible upstream.
+  # Replace api_base with your provider/shim. If the upstream speaks the plain
+  # OpenAI chat API, no custom code is needed at all.
+  # --------------------------------------------------------------------------
+  - model_name: upstream-a/fast
+    litellm_params:
+      model: openai/<upstream-model-id>
+      api_key: os.environ/UPSTREAM_A_API_KEY
+      api_base: ${UPSTREAM_A_BASE_URL}          # e.g. http://127.0.0.1:9001/v1
+      use_chat_completions_api: true
+    model_info:
+      mode: chat
+      db_model: true
+
+  # --------------------------------------------------------------------------
+  # Lane 2 — wildcard: EVERY model of a provider, resolved live.
+  # Call as  openrouter/<org>/<model>  (including brand-new models the moment
+  # they exist — nothing to register). Requires an OpenRouter key.
+  # --------------------------------------------------------------------------
+  - model_name: "openrouter/*"
+    litellm_params:
+      model: "openrouter/*"
+      api_key: os.environ/OPENROUTER_API_KEY
+    model_info:
+      mode: chat
+      db_model: true
+
+  # --------------------------------------------------------------------------
+  # Lane 3 — a second wildcard cloud gateway (Ollama cloud shown).
+  # Call as  ollama/<model>.  NOTE: LiteLLM's cost map lists hundreds of
+  # ollama/* names; only a couple of dozen actually exist upstream, so probe
+  # real names before advertising them.
+  # --------------------------------------------------------------------------
+  - model_name: "ollama/*"
+    litellm_params:
+      model: "openai/*"
+      api_base: https://ollama.com/v1
+      api_key: os.environ/OLLAMA_API_KEY
+      use_chat_completions_api: true
+    model_info:
+      mode: chat
+      db_model: true
+
+  # --------------------------------------------------------------------------
+  # Lane 4 — LOCAL decision engine (Laya). Laya is non-autoregressive: it
+  # answers typed questions (choice / score / noul) in one forward pass instead
+  # of generating text. It is exposed through a small local HTTP wrapper
+  # (scripts/laya_server.py → 127.0.0.1:4030) that speaks OpenAI chat.
+  #
+  # The same pattern works for ANY local model server (llama.cpp, vLLM, a
+  # custom service): run it on a port, point api_base at it, done.
+  #
+  # Call as: laya (auto-routed) / laya-en / laya-ml / laya-typed
+  # --------------------------------------------------------------------------
+  - model_name: laya
+    litellm_params:
+      model: openai/laya
+      api_key: unused-local            # local servers usually need no key
+      api_base: http://127.0.0.1:4030/v1
+      use_chat_completions_api: true
+    model_info:
+      mode: chat
+      db_model: true
+  - model_name: laya-en
+    litellm_params:
+      model: openai/laya-en
+      api_key: unused-local
+      api_base: http://127.0.0.1:4030/v1
+      use_chat_completions_api: true
+  - model_name: laya-ml
+    litellm_params:
+      model: openai/laya-ml
+      api_key: unused-local
+      api_base: http://127.0.0.1:4030/v1
+      use_chat_completions_api: true
+  - model_name: laya-typed
+    litellm_params:
+      model: openai/laya-typed
+      api_key: unused-local
+      api_base: http://127.0.0.1:4030/v1
+      use_chat_completions_api: true
+
+  # --------------------------------------------------------------------------
+  # Lane 5 (optional) — a custom Python provider for APIs that validate request
+  # SHAPE (required tools, forced streaming, session headers). A CustomLLM
+  # handler builds that shape; its models register dynamically at runtime, so
+  # this lane needs no static model_list entries — only the custom_provider_map
+  # below. It ships commented out because it depends on your own handler file.
+  # --------------------------------------------------------------------------
+
+litellm_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Multi-lane reality: clients send params some lanes don't support
+  # (e.g. reasoning_effort). Without drop_params the request 400s; with it,
+  # unsupported params are silently dropped per-lane.
+  drop_params: true
+  num_retries: 2
+  # REQUIRED when bridging Anthropic-shaped messages — without it /v1/messages
+  # returns empty content.
+  use_chat_completions_url_for_anthropic_messages: true
+  store_prompts_in_spend_logs: true
+  # Custom provider registration (Lane 5). The handler module must import
+  # cleanly from the config's directory. Build the handler first
+  # (docs/02-LANES.md → Pattern 5), then uncomment:
+  # custom_provider_map:
+  #   - {"provider": "myprov", "custom_handler": my_provider.handler_instance}
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL   # Postgres for keys/spend
+  store_model_in_db: true
